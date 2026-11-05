@@ -3,10 +3,10 @@
      License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl). -->
 <odoo>
     <record id="event_waitlist_view_tree" model="ir.ui.view">
-        <field name="name">event.waitlist.tree</field>
+        <field name="name">event.waitlist.list</field>
         <field name="model">event.waitlist</field>
         <field name="arch" type="xml">
-            <tree
+            <list
                 sample="1"
                 decoration-muted="state in ('expired', 'declined', 'cancelled')"
                 decoration-success="state == 'confirmed'"
@@ -48,7 +48,7 @@
                     groups="event.group_event_user"
                     confirm="Remove this person from the waiting list?"
                 />
-            </tree>
+            </list>
         </field>
     </record>
 
@@ -114,7 +114,9 @@
                     </div>
                     <div class="oe_title">
                         <label for="name" />
-                        <h1><field name="name" placeholder="e.g. Alex Miller" /></h1>
+                        <h1>
+                            <field name="name" placeholder="e.g. Alex Miller" />
+                        </h1>
                     </div>
                     <group>
                         <group>
@@ -202,7 +204,7 @@
     <record id="event_waitlist_action" model="ir.actions.act_window">
         <field name="name">Waiting Lists</field>
         <field name="res_model">event.waitlist</field>
-        <field name="view_mode">tree,form</field>
+        <field name="view_mode">list,form</field>
         <field
             name="context"
         >{'search_default_filter_active': 1, 'search_default_filter_upcoming': 1}</field>

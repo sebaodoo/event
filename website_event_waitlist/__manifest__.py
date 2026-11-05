@@ -3,7 +3,7 @@
 {
     "name": "Website Event Waitlist",
     "summary": "Let visitors join the waiting list of sold-out events on the website",
-    "version": "17.0.1.0.0",
+    "version": "18.0.1.0.0",
     "category": "Marketing/Events",
     "website": "https://github.com/OCA/event",
     "author": "SportJoe GmbH, Odoo Community Association (OCA)",
