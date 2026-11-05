@@ -18,8 +18,9 @@
         <field name="waitlist_mode">offer</field>
         <field name="waitlist_offer_hours">12</field>
         <field name="waitlist_max_size">20</field>
-        <field name="description" type="html"><p
-            >A relaxed yoga class for beginners.</p></field>
+        <field name="description" type="html">
+            <p>A relaxed yoga class for beginners.</p>
+        </field>
     </record>
 
     <record id="event_waitlist_demo_reg_1" model="event.registration">

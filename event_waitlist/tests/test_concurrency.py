@@ -1,23 +1,24 @@
 # Copyright 2026 SportJoe GmbH
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
-import threading
 from datetime import timedelta
 
-import odoo
+import psycopg2
+
 from odoo import SUPERUSER_ID, api, fields
-from odoo.service.model import retrying
+from odoo.modules.registry import Registry
 from odoo.tests import BaseCase, get_db_name, tagged
+from odoo.tools import mute_logger
 
 
 @tagged("post_install", "-at_install")
 class TestEventWaitlistConcurrency(BaseCase):
     """Two cancellations committed at the same time must not offer the same
     person twice, nor give away more seats than are free. Uses real
-    committed transactions in parallel threads."""
+    committed transactions."""
 
     def setUp(self):
         super().setUp()
-        self.registry = odoo.registry(get_db_name())
+        self.registry = Registry(get_db_name())
         with self.registry.cursor() as cr:
             env = api.Environment(cr, SUPERUSER_ID, {})
             now = fields.Datetime.now()
@@ -66,39 +67,37 @@ class TestEventWaitlistConcurrency(BaseCase):
             event.unlink()
         super().tearDown()
 
-    def _cancel_in_thread(self, reg_id, barrier, errors):
-        attempt = {"first": True}
-
-        def work(env):
-            reg = env["event.registration"].browse(reg_id)
-            _snapshot = reg.state
-            if attempt.pop("first", False):
-                barrier.wait(timeout=10)
-            reg.action_cancel()
-
-        try:
-            with self.registry.cursor() as cr:
-                env = api.Environment(
-                    cr, SUPERUSER_ID, {"event_waitlist_no_mail": True}
-                )
-                retrying(lambda: work(env), env)
-        except Exception as e:  # noqa: BLE001 pylint: disable=broad-except
-            errors.append(e)
+    def _env(self, cr):
+        return api.Environment(cr, SUPERUSER_ID, {"event_waitlist_no_mail": True})
 
     def test_parallel_cancellations(self):
-        barrier = threading.Barrier(2)
-        errors = []
-        threads = [
-            threading.Thread(
-                target=self._cancel_in_thread, args=(reg_id, barrier, errors)
+        """Two cancellations in concurrent transactions: the second one sees
+        an outdated snapshot, must fail with a serialization error (and be
+        retried, as Odoo does for every request), and then gives the next
+        free seat to the next person. Transactions are interleaved in one
+        thread, which makes the test deterministic."""
+        reg_1, reg_2 = self.reg_ids
+        with self.registry.cursor() as cr1, self.registry.cursor() as cr2:
+            # Transaction 2 takes its snapshot before transaction 1 commits.
+            self._env(cr2)["event.registration"].browse(reg_2).state  # noqa: B018
+            self._env(cr1)["event.registration"].browse(reg_1).write(
+                {"state": "cancel"}
             )
-            for reg_id in self.reg_ids
-        ]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join(timeout=60)
-        self.assertFalse(errors, errors)
+            self._env(cr1).flush_all()
+            cr1.commit()  # pylint: disable=invalid-commit
+            with (
+                mute_logger("odoo.sql_db"),
+                self.assertRaises(psycopg2.errors.SerializationFailure),
+            ):
+                env2 = self._env(cr2)
+                env2["event.registration"].browse(reg_2).write({"state": "cancel"})
+                env2.flush_all()
+            cr2.rollback()
+            # Retry with a fresh snapshot, like Odoo's request retry
+            env2 = self._env(cr2)
+            env2["event.registration"].browse(reg_2).write({"state": "cancel"})
+            env2.flush_all()
+            cr2.commit()  # pylint: disable=invalid-commit
         with self.registry.cursor() as cr:
             env = api.Environment(cr, SUPERUSER_ID, {})
             entries = env["event.waitlist"].browse(self.entry_ids)
