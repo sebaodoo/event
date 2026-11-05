@@ -9,7 +9,6 @@
         <field name="code">model._cron_process_waitlists()</field>
         <field name="interval_number">10</field>
         <field name="interval_type">minutes</field>
-        <field name="numbercall">-1</field>
         <field name="active" eval="True" />
     </record>
     <record id="ir_cron_event_waitlist_cleanup" model="ir.cron">
@@ -19,7 +18,6 @@
         <field name="code">model._cron_cleanup_waitlists()</field>
         <field name="interval_number">1</field>
         <field name="interval_type">days</field>
-        <field name="numbercall">-1</field>
         <field name="active" eval="True" />
     </record>
 </odoo>

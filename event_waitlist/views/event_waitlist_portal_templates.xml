@@ -48,18 +48,18 @@
                             <strong t-out="entry.name" />
                             <span class="text-muted">
                                 (<t t-out="entry.seats" /> <t
-                                    t-if="entry.seats == 1"
-                                >seat</t><t t-else="">seats</t><t
-                                    t-if="entry.event_ticket_id"
-                                >, <span t-out="entry.event_ticket_id.name" /></t>)
+                                t-if="entry.seats == 1"
+                            >seat</t><t t-else="">seats</t><t
+                                t-if="entry.event_ticket_id"
+                            >, <span t-out="entry.event_ticket_id.name" /></t>)
                             </span>
                         </p>
 
                         <t t-if="entry.state == 'waiting'">
                             <p class="fs-5 mb-3">
                                 You are number <strong
-                                    t-out="entry.position"
-                                /> on the waiting list.
+                                t-out="entry.position"
+                            /> on the waiting list.
                             </p>
                             <p class="text-muted">
                                 As soon as a seat becomes free, we will email you.
@@ -71,9 +71,9 @@
                             <p>
                                 It is reserved for you until
                                 <strong
-                                    t-out="entry.offer_deadline"
-                                    t-options="{'widget': 'datetime', 'tz_name': event.date_tz, 'format': 'short'}"
-                                />.
+                                t-out="entry.offer_deadline"
+                                t-options="{'widget': 'datetime', 'tz_name': event.date_tz, 'format': 'short'}"
+                            />.
                             </p>
                             <div class="d-flex flex-wrap gap-2 mt-3">
                                 <form
