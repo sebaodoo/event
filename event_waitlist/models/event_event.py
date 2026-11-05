@@ -1,6 +1,6 @@
 # Copyright 2026 SportJoe GmbH
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 from .event_waitlist import ACTIVE_STATES
@@ -79,17 +79,26 @@ class EventEvent(models.Model):
     # Seats: seats offered to the waiting list are not available to others
     # ------------------------------------------------------------------
 
-    def _waitlist_held_seats_by(self, groupby):
-        """Return {id: held seats} grouped by 'event_id' or 'event_ticket_id'."""
+    @api.model
+    def _waitlist_holding_domain(self):
         Waitlist = self.env["event.waitlist"].sudo()
+        domain = [("state", "in", Waitlist._get_holding_states())]
         ignore = self.env.context.get("event_waitlist_ignore_entry_ids") or ()
-        domain = [
-            ("event_id", "in", self._origin.ids if groupby == "event_id" else []),
-            ("state", "in", Waitlist._get_holding_states()),
-        ]
         if ignore:
             domain.append(("id", "not in", list(ignore)))
-        return Waitlist._waitlist_sum_seats(domain, groupby)
+        return domain
+
+    def _waitlist_held_seats_by(self, groupby):
+        """Return {id: held seats} for these events, grouped by 'event_id'."""
+        return (
+            self.env["event.waitlist"]
+            .sudo()
+            ._waitlist_sum_seats(
+                [("event_id", "in", self._origin.ids)]
+                + self._waitlist_holding_domain(),
+                groupby,
+            )
+        )
 
     @api.depends("waitlist_ids.state", "waitlist_ids.seats")
     @api.depends_context("event_waitlist_ignore_entry_ids")
@@ -103,15 +112,64 @@ class EventEvent(models.Model):
                 event.seats_available -= seats
         return res
 
+    def _get_seats_availability(self, slot_tickets):
+        """Seats held for the waiting list are not available. Event, slot and
+        ticket totals are already reduced in their ``_compute_seats``; only the
+        per slot and ticket combination is computed here."""
+        availabilities = super()._get_seats_availability(slot_tickets)
+        combos = [
+            (slot, ticket)
+            for slot, ticket in slot_tickets
+            if slot and ticket and ticket.seats_max
+        ]
+        if not combos or not self._origin.ids:
+            return availabilities
+        Waitlist = self.env["event.waitlist"].sudo()
+        Waitlist.flush_model()
+        held = {
+            (slot.id, ticket.id): seats
+            for slot, ticket, seats in Waitlist._read_group(
+                [("event_id", "in", self._origin.ids)]
+                + self._waitlist_holding_domain(),
+                ["event_slot_id", "event_ticket_id"],
+                ["seats:sum"],
+            )
+        }
+        result = []
+        for (slot, ticket), available in zip(slot_tickets, availabilities, strict=True):
+            seats = held.get((slot.id, ticket.id), 0) if slot and ticket else 0
+            if seats and available is not None and ticket.seats_max:
+                # super() took min(slot, ticket - registrations); the slot part
+                # already excludes held seats, the ticket part does not.
+                taken = (
+                    self.env["event.registration"]
+                    .sudo()
+                    .search_count(
+                        [
+                            ("event_slot_id", "=", slot.id),
+                            ("event_ticket_id", "=", ticket.id),
+                            ("state", "in", ["open", "done"]),
+                        ]
+                    )
+                )
+                ticket_available = ticket.seats_max - taken - seats
+                available = min(available, ticket_available)
+            result.append(available)
+        return result
+
     @api.constrains(
         "waitlist_offer_hours", "waitlist_max_size", "waitlist_retention_days"
     )
     def _check_waitlist_values(self):
         for event in self:
             if event.waitlist_offer_hours < 1:
-                raise ValidationError(_("The offer deadline must be at least 1 hour."))
+                raise ValidationError(
+                    self.env._("The offer deadline must be at least 1 hour.")
+                )
             if event.waitlist_max_size < 0 or event.waitlist_retention_days < 0:
-                raise ValidationError(_("Waiting list values cannot be negative."))
+                raise ValidationError(
+                    self.env._("Waiting list values cannot be negative.")
+                )
 
     # ------------------------------------------------------------------
     # CRUD hooks
@@ -165,7 +223,9 @@ class EventEvent(models.Model):
             )
             if count > event.waitlist_max_size:
                 raise ValidationError(
-                    _("The waiting list of %(event)s is full.", event=event.name)
+                    self.env._(
+                        "The waiting list of %(event)s is full.", event=event.name
+                    )
                 )
 
     def _waitlist_lock(self):
@@ -193,12 +253,13 @@ class EventEvent(models.Model):
         self.invalidate_recordset(["write_date"])
 
     def _waitlist_can_offer(self):
-        """No offers once the event has started or registrations are over."""
+        """No offers once the event has started or registrations are over.
+        With time slots, each entry is also checked against its own slot."""
         self.ensure_one()
         now = fields.Datetime.now()
         if not self.waitlist_enabled or not self.active:
             return False
-        if self.date_begin and self.date_begin <= now:
+        if not self.is_multi_slots and self.date_begin and self.date_begin <= now:
             return False
         if self.date_end and self.date_end <= now:
             return False
@@ -206,22 +267,66 @@ class EventEvent(models.Model):
             return False
         return True
 
+    def _waitlist_future_slots(self):
+        self.ensure_one()
+        now = fields.Datetime.now()
+        return self.event_slot_ids.filtered(lambda s: s.start_datetime > now)
+
+    def _waitlist_joinable_combinations(self):
+        """List of (slot, ticket) for which people may join the waiting list:
+        sold-out combinations of future slots (or the event) and sellable
+        tickets. Slot and ticket are empty recordsets when not used."""
+        self.ensure_one()
+        slots = (
+            list(self._waitlist_future_slots())
+            if self.is_multi_slots
+            else [self.env["event.slot"]]
+        )
+        tickets = self.event_ticket_ids.filtered(
+            lambda t: not t.is_expired and t.is_launched
+        )
+        if self.event_ticket_ids and not tickets:
+            return []
+        tickets = list(tickets) or [self.env["event.event.ticket"]]
+        combos = [(slot, ticket) for slot in slots for ticket in tickets]
+        if not combos:
+            return []
+        availabilities = self._get_seats_availability(combos)
+        return [
+            combo
+            for combo, available in zip(combos, availabilities, strict=True)
+            if available is not None and available <= 0
+        ]
+
     def _waitlist_joinable_tickets(self):
         """Tickets of this event for which people may join the waiting list."""
         self.ensure_one()
-        return self.event_ticket_ids.filtered(
-            lambda t: not t.is_expired and t.is_launched and t.is_sold_out
-        )
+        tickets = self.env["event.event.ticket"]
+        for _slot, ticket in self._waitlist_joinable_combinations():
+            tickets |= ticket
+        return tickets
 
-    def _waitlist_can_join(self, ticket=None):
-        """Whether a visitor may join the waiting list (optionally for a ticket)."""
+    def _waitlist_joinable_slots(self):
+        """Slots of this event for which people may join the waiting list."""
+        self.ensure_one()
+        slots = self.env["event.slot"]
+        for slot, _ticket in self._waitlist_joinable_combinations():
+            slots |= slot
+        return slots
+
+    def _waitlist_can_join(self, ticket=None, slot=None):
+        """Whether a visitor may join the waiting list, optionally for a given
+        ticket and/or slot."""
         self.ensure_one()
         if not self._waitlist_can_offer() or self.waitlist_is_full:
             return False
-        if self.event_ticket_ids:
-            joinable = self._waitlist_joinable_tickets()
-            return ticket in joinable if ticket else bool(joinable)
-        return bool(self.event_registrations_sold_out)
+        for combo_slot, combo_ticket in self._waitlist_joinable_combinations():
+            if ticket and combo_ticket != ticket:
+                continue
+            if slot and combo_slot != slot:
+                continue
+            return True
+        return False
 
     def _waitlist_next_entry(self):
         """First waiting entry (in order) for which enough seats are free.
@@ -286,8 +391,38 @@ class EventEvent(models.Model):
             "default_event_id": self.id,
             "search_default_filter_active": 1,
         }
-        action["name"] = _("Waiting List: %s", self.name)
+        action["name"] = self.env._("Waiting List: %s", self.name)
         return action
+
+
+class EventSlot(models.Model):
+    _inherit = "event.slot"
+
+    waitlist_seats_held = fields.Integer(
+        string="Seats Held for Waiting List", compute="_compute_seats"
+    )
+
+    @api.depends("event_id.waitlist_ids.state", "event_id.waitlist_ids.seats")
+    @api.depends_context("event_waitlist_ignore_entry_ids")
+    def _compute_seats(self):
+        res = super()._compute_seats()
+        held = {}
+        if self._origin.ids:
+            held = (
+                self.env["event.waitlist"]
+                .sudo()
+                ._waitlist_sum_seats(
+                    [("event_slot_id", "in", self._origin.ids)]
+                    + self.env["event.event"]._waitlist_holding_domain(),
+                    "event_slot_id",
+                )
+            )
+        for slot in self:
+            seats = held.get(slot._origin.id, 0)
+            slot.waitlist_seats_held = seats
+            if seats and slot.event_id.seats_max > 0:
+                slot.seats_available -= seats
+        return res
 
 
 class EventTicket(models.Model):
@@ -303,15 +438,15 @@ class EventTicket(models.Model):
         res = super()._compute_seats()
         held = {}
         if self._origin.ids:
-            Waitlist = self.env["event.waitlist"].sudo()
-            ignore = self.env.context.get("event_waitlist_ignore_entry_ids") or ()
-            domain = [
-                ("event_ticket_id", "in", self._origin.ids),
-                ("state", "in", Waitlist._get_holding_states()),
-            ]
-            if ignore:
-                domain.append(("id", "not in", list(ignore)))
-            held = Waitlist._waitlist_sum_seats(domain, "event_ticket_id")
+            held = (
+                self.env["event.waitlist"]
+                .sudo()
+                ._waitlist_sum_seats(
+                    [("event_ticket_id", "in", self._origin.ids)]
+                    + self.env["event.event"]._waitlist_holding_domain(),
+                    "event_ticket_id",
+                )
+            )
         for ticket in self:
             seats = held.get(ticket._origin.id, 0)
             ticket.waitlist_seats_held = seats

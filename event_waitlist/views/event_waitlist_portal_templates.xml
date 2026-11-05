@@ -9,10 +9,10 @@
                 <h1 class="h3 mb-1">Waiting list</h1>
                 <h2 class="h5 text-muted mb-4">
                     <span t-out="event.name" />
-                    <t t-if="event.date_begin">
+                    <t t-if="entry.event_slot_id or event.date_begin">
                         &#8212;
                         <span
-                            t-out="event.date_begin"
+                            t-out="entry.event_slot_id.start_datetime or event.date_begin"
                             t-options="{'widget': 'datetime', 'tz_name': event.date_tz, 'format': 'short'}"
                         />
                     </t>

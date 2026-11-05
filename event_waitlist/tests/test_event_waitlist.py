@@ -90,7 +90,7 @@ class TestEventWaitlist(WaitlistCommon, TransactionCase):
     def test_10_offer_on_cancellation_and_seat_is_held(self):
         alice = self._add_entry("Alice")
         bob = self._add_entry("Bob")
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         self.assertEqual(alice.state, "offered")
         self.assertEqual(bob.state, "waiting")
         self.assertEqual(bob.position, 1)
@@ -118,7 +118,7 @@ class TestEventWaitlist(WaitlistCommon, TransactionCase):
 
     def test_11_accept_offer_registers(self):
         alice = self._add_entry("Alice", seats=1, phone="+49 221 123")
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         self.assertTrue(alice.action_accept_offer())
         self.assertEqual(alice.state, "confirmed")
         self.assertEqual(len(alice.registration_ids), 1)
@@ -148,7 +148,7 @@ class TestEventWaitlist(WaitlistCommon, TransactionCase):
             )
         ]
         alice = self._add_entry("Alice")
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         alice.action_accept_offer()
         self.assertFalse(
             self._mails(alice, "event_waitlist.mail_template_waitlist_confirmed")
@@ -157,7 +157,7 @@ class TestEventWaitlist(WaitlistCommon, TransactionCase):
     def test_13_decline_goes_to_next(self):
         alice = self._add_entry("Alice")
         bob = self._add_entry("Bob")
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         alice.action_decline_offer()
         self.assertEqual(alice.state, "declined")
         self.assertEqual(bob.state, "offered")
@@ -165,7 +165,7 @@ class TestEventWaitlist(WaitlistCommon, TransactionCase):
     def test_14_expiry_by_cron_goes_to_next(self):
         alice = self._add_entry("Alice")
         bob = self._add_entry("Bob")
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         alice.offer_deadline = fields.Datetime.now() - timedelta(minutes=1)
         self.env["event.waitlist"]._cron_process_waitlists()
         self.assertEqual(alice.state, "expired")
@@ -180,7 +180,7 @@ class TestEventWaitlist(WaitlistCommon, TransactionCase):
     def test_15_accept_after_deadline_before_cron(self):
         alice = self._add_entry("Alice")
         bob = self._add_entry("Bob")
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         alice.offer_deadline = fields.Datetime.now() - timedelta(minutes=1)
         self.assertFalse(alice.action_accept_offer())
         self.assertEqual(alice.state, "expired")
@@ -189,7 +189,7 @@ class TestEventWaitlist(WaitlistCommon, TransactionCase):
     def test_16_leave_while_offered_goes_to_next(self):
         alice = self._add_entry("Alice")
         bob = self._add_entry("Bob")
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         alice.action_leave()
         self.assertEqual(alice.state, "cancelled")
         self.assertEqual(bob.state, "offered")
@@ -197,13 +197,13 @@ class TestEventWaitlist(WaitlistCommon, TransactionCase):
     def test_17_bigger_request_keeps_position(self):
         family = self._add_entry("Family", seats=2)
         alice = self._add_entry("Alice")
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         # Only one seat: the family keeps its position, Alice gets the seat
         self.assertEqual(family.state, "waiting")
         self.assertEqual(alice.state, "offered")
         self.assertEqual(family.position, 1)
         alice.action_accept_offer()
-        self.reg_2.action_cancel()
+        self.reg_2.write({"state": "cancel"})
         self.assertEqual(family.state, "waiting")
         self.event.seats_max = 4
         self.assertEqual(family.state, "offered")
@@ -222,7 +222,7 @@ class TestEventWaitlist(WaitlistCommon, TransactionCase):
     def test_19_offer_deadline_capped_by_start(self):
         self.event.date_begin = fields.Datetime.now() + timedelta(hours=3)
         alice = self._add_entry("Alice")
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         self.assertLessEqual(alice.offer_deadline, self.event.date_begin)
 
     def test_20_no_offer_after_start(self):
@@ -233,14 +233,14 @@ class TestEventWaitlist(WaitlistCommon, TransactionCase):
                 "date_end": fields.Datetime.now() + timedelta(hours=1),
             }
         )
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         self.assertEqual(alice.state, "waiting")
         self.assertFalse(self.event._waitlist_can_join())
 
     def test_21_no_offer_when_disabled(self):
         alice = self._add_entry("Alice")
         self.event.waitlist_enabled = False
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         self.assertEqual(alice.state, "waiting")
         self.event.waitlist_enabled = True
         self.assertEqual(alice.state, "offered")
@@ -265,9 +265,9 @@ class TestEventWaitlist(WaitlistCommon, TransactionCase):
     def test_30_auto_mode_registers(self):
         self.event.waitlist_mode = "auto"
         alice = self._add_entry("Alice", seats=2)
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         self.assertEqual(alice.state, "waiting")
-        self.reg_2.action_cancel()
+        self.reg_2.write({"state": "cancel"})
         self.assertEqual(alice.state, "confirmed")
         self.assertEqual(
             len(alice.registration_ids.filtered(lambda r: r.state == "open")), 2
@@ -304,7 +304,7 @@ class TestEventWaitlist(WaitlistCommon, TransactionCase):
         self.assertFalse(event._waitlist_can_join(guests))
         alice = self._add_entry("Alice", event=event, event_ticket_id=members.id)
         self.assertEqual(alice.state, "waiting")
-        reg.action_cancel()
+        reg.write({"state": "cancel"})
         self.assertEqual(alice.state, "offered")
         self.assertEqual(members.seats_available, 0)
         self.assertEqual(members.waitlist_seats_held, 1)
@@ -328,7 +328,7 @@ class TestEventWaitlist(WaitlistCommon, TransactionCase):
             {
                 "name": "Portal",
                 "login": "wl_portal",
-                "groups_id": [(6, 0, [self.env.ref("base.group_portal").id])],
+                "group_ids": [(6, 0, [self.env.ref("base.group_portal").id])],
             }
         )
         for user in (public, portal):

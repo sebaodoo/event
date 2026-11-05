@@ -20,21 +20,40 @@
         </xpath>
     </template>
 
-    <!-- Ticket modal (several tickets): one ticket sold out, others still available -->
+    <!-- Ticket modal (several tickets): a ticket (or ticket of the chosen
+         slot) is sold out while others are still available -->
     <template
         id="modal_ticket_registration_waitlist"
         inherit_id="website_event.modal_ticket_registration"
         name="Tickets: waiting list link"
     >
         <xpath
-            expr="//span[@t-if='not ticket.sale_available and not ticket.is_expired and ticket.is_launched']"
+            expr="//span[@t-if='(not ticket.sale_available and not ticket.is_expired and ticket.is_launched) or not max_input_value']"
             position="after"
         >
             <a
-                t-if="not ticket.sale_available and not ticket.is_expired and ticket.is_launched and event.sudo()._waitlist_can_join(ticket.sudo())"
-                t-attf-href="/event/#{slug(event)}/waitlist?ticket_id=#{ticket.id}"
+                t-if="((not ticket.sale_available and not ticket.is_expired and ticket.is_launched) or not max_input_value) and event.sudo()._waitlist_can_join(ticket.sudo(), event_slot.sudo() if event_slot else None)"
+                t-attf-href="/event/#{slug(event)}/waitlist?ticket_id=#{ticket.id}#{'&amp;slot_id=%s' % event_slot.id if event_slot else ''}"
                 class="d-block small o_wevent_waitlist_join"
             >Join the waiting list</a>
+        </xpath>
+    </template>
+
+    <!-- Events with time slots: some dates are fully booked -->
+    <template
+        id="event_description_dates_waitlist"
+        inherit_id="website_event.event_description_dates"
+        name="Dates: waiting list link"
+    >
+        <xpath
+            expr="//button[@data-bs-target='#modal_slot_registration']"
+            position="after"
+        >
+            <a
+                t-if="event.is_multi_slots and event.sudo()._waitlist_can_join()"
+                t-attf-href="/event/#{slug(event)}/waitlist"
+                class="btn btn-link text-decoration-none pb-0 o_wevent_waitlist_join"
+            >Date fully booked? Join the waiting list</a>
         </xpath>
     </template>
 
@@ -169,6 +188,30 @@
                                             t-att-value="nb"
                                             t-out="nb"
                                             t-att-selected="str(nb) == str(form.get('seats', 1))"
+                                        />
+                                    </t>
+                                </select>
+                            </div>
+                            <div t-if="waitlist_slots" class="col-md-12">
+                                <label
+                                    for="waitlist_slot"
+                                    class="form-label"
+                                >Date</label>
+                                <select
+                                    class="form-select"
+                                    id="waitlist_slot"
+                                    name="slot_id"
+                                    required="required"
+                                >
+                                    <option
+                                        t-if="len(waitlist_slots) &gt; 1"
+                                        value=""
+                                    >Choose a date…</option>
+                                    <t t-foreach="waitlist_slots" t-as="slot">
+                                        <option
+                                            t-att-value="slot.id"
+                                            t-out="slot.display_name"
+                                            t-att-selected="str(slot.id) == str(form.get('slot_id'))"
                                         />
                                     </t>
                                 </select>
