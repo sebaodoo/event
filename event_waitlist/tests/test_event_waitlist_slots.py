@@ -75,9 +75,9 @@ class TestEventWaitlistSlots(WaitlistCommon, TransactionCase):
                 "event_slot_id": self.slot_2.id,
                 "name": "Slot 2",
             }
-        ).action_cancel()
+        ).write({"state": "cancel"})
         self.assertEqual(alice.state, "waiting")
-        self.reg_s1.action_cancel()
+        self.reg_s1.write({"state": "cancel"})
         self.assertEqual(alice.state, "offered")
         self.assertLessEqual(alice.offer_deadline, self.slot_1.start_datetime)
         # The seat of slot 1 is held: nobody else can book it
@@ -131,7 +131,7 @@ class TestEventWaitlistSlots(WaitlistCommon, TransactionCase):
         self.slot_1.write(
             {"date": fields.Date.today() - timedelta(days=1), "start_hour": 8.0}
         )
-        self.reg_s1.action_cancel()
+        self.reg_s1.write({"state": "cancel"})
         self.assertEqual(alice.state, "waiting")
 
     def test_06_slot_and_ticket(self):
@@ -176,7 +176,7 @@ class TestEventWaitlistSlots(WaitlistCommon, TransactionCase):
         alice = self._add_entry(
             "Alice", event=event, event_slot_id=slot.id, event_ticket_id=members.id
         )
-        reg.action_cancel()
+        reg.write({"state": "cancel"})
         self.assertEqual(alice.state, "offered")
         self.assertEqual(event._get_seats_availability([(slot, members)]), [0])
         self.assertEqual(event._get_seats_availability([(slot, guests)]), [5])

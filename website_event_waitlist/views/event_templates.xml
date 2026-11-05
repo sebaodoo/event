@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <!-- Copyright 2026 SportJoe GmbH
      License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl). -->
 <odoo>
@@ -14,8 +14,8 @@
         >
             <a
                 t-if="event.sudo()._waitlist_can_join()"
-                t-attf-href="/event/#{slug(event)}/waitlist"
                 class="btn btn-primary w-100 mt-2 o_wevent_waitlist_join"
+                t-attf-href="/event/#{slug(event)}/waitlist"
             >Join the waiting list</a>
         </xpath>
     </template>
@@ -33,8 +33,8 @@
         >
             <a
                 t-if="((not ticket.sale_available and not ticket.is_expired and ticket.is_launched) or not max_input_value) and event.sudo()._waitlist_can_join(ticket.sudo(), event_slot.sudo() if event_slot else None)"
-                t-attf-href="/event/#{slug(event)}/waitlist?ticket_id=#{ticket.id}#{'&amp;slot_id=%s' % event_slot.id if event_slot else ''}"
                 class="d-block small o_wevent_waitlist_join"
+                t-attf-href="/event/#{slug(event)}/waitlist?ticket_id=#{ticket.id}#{'&amp;slot_id=%s' % event_slot.id if event_slot else ''}"
             >Join the waiting list</a>
         </xpath>
     </template>
@@ -51,8 +51,8 @@
         >
             <a
                 t-if="event.is_multi_slots and event.sudo()._waitlist_can_join()"
-                t-attf-href="/event/#{slug(event)}/waitlist"
                 class="btn btn-link text-decoration-none pb-0 o_wevent_waitlist_join"
+                t-attf-href="/event/#{slug(event)}/waitlist"
             >Date fully booked? Join the waiting list</a>
         </xpath>
     </template>
@@ -60,8 +60,8 @@
     <!-- Event list: tell visitors that a sold-out event has a waiting list -->
     <template
         id="events_list_waitlist"
-        inherit_id="website_event.events_list"
-        name="Events list: waiting list"
+        inherit_id="website_event.event_card"
+        name="Event card: waiting list"
     >
         <xpath
             expr="(//t[@t-elif='event.event_registrations_sold_out'])[1]"
@@ -70,7 +70,7 @@
             <t t-if="event.sudo()._waitlist_can_join()"> &#183; Waiting list open</t>
         </xpath>
         <xpath
-            expr="(//t[@t-elif='event.event_registrations_sold_out'])[2]"
+            expr="(//t[@t-elif='event.event_registrations_sold_out'])[3]"
             position="inside"
         >
             <t t-if="event.sudo()._waitlist_can_join()"> &#183; Waiting list open</t>
@@ -99,7 +99,7 @@
                     </div>
                 </t>
                 <t t-else="">
-                    <div class="oe_structure" id="oe_structure_waitlist_intro">
+                    <div id="oe_structure_waitlist_intro" class="oe_structure">
                         <p>
                             This event is fully booked. Leave your details and we will email
                             you as soon as a seat becomes free.
@@ -135,9 +135,9 @@
                                     class="form-label"
                                 >Name *</label>
                                 <input
-                                    type="text"
-                                    class="form-control"
                                     id="waitlist_name"
+                                    class="form-control"
+                                    type="text"
                                     name="name"
                                     required="required"
                                     autocomplete="name"
@@ -150,9 +150,9 @@
                                     class="form-label"
                                 >Email *</label>
                                 <input
-                                    type="email"
-                                    class="form-control"
                                     id="waitlist_email"
+                                    class="form-control"
+                                    type="email"
                                     name="email"
                                     required="required"
                                     autocomplete="email"
@@ -165,9 +165,9 @@
                                     class="form-label"
                                 >Phone (optional)</label>
                                 <input
-                                    type="tel"
-                                    class="form-control"
                                     id="waitlist_phone"
+                                    class="form-control"
+                                    type="tel"
                                     name="phone"
                                     autocomplete="tel"
                                     t-att-value="form.get('phone')"
@@ -179,8 +179,8 @@
                                     class="form-label"
                                 >Seats</label>
                                 <select
-                                    class="form-select"
                                     id="waitlist_seats"
+                                    class="form-select"
                                     name="seats"
                                 >
                                     <t t-foreach="range(1, max_seats + 1)" t-as="nb">
@@ -198,8 +198,8 @@
                                     class="form-label"
                                 >Date</label>
                                 <select
-                                    class="form-select"
                                     id="waitlist_slot"
+                                    class="form-select"
                                     name="slot_id"
                                     required="required"
                                 >
@@ -222,8 +222,8 @@
                                     class="form-label"
                                 >Ticket</label>
                                 <select
-                                    class="form-select"
                                     id="waitlist_ticket"
+                                    class="form-select"
                                     name="ticket_id"
                                     required="required"
                                 >
@@ -242,8 +242,8 @@
                             </div>
                         </div>
                         <div
-                            class="oe_structure small text-muted mt-4"
                             id="oe_structure_waitlist_privacy"
+                            class="oe_structure small text-muted mt-4"
                         >
                             <p>
                                 Privacy: we only use your details to manage the waiting list and to
@@ -298,7 +298,7 @@
                         <a t-att-href="event.website_url" t-out="event.name" />.
                     </p>
                 </t>
-                <div class="oe_structure" id="oe_structure_waitlist_done" />
+                <div id="oe_structure_waitlist_done" class="oe_structure" />
                 <a
                     t-att-href="event.website_url"
                     class="btn btn-secondary mt-3"

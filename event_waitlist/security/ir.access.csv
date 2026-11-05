@@ -1,0 +1,5 @@
+id,name,model_id,group_id/id,operation,domain
+access_event_waitlist_desk,event.waitlist.registration_desk,event.waitlist,event.group_event_registration_desk,r,
+access_event_waitlist_user,event.waitlist.user,event.waitlist,event.group_event_user,cru,
+access_event_waitlist_manager,event.waitlist.manager,event.waitlist,event.group_event_manager,crud,
+event_waitlist_company_rule,Event waiting list: multi-company,event.waitlist,,crud,"[('company_id', 'in', company_ids + [False])]"

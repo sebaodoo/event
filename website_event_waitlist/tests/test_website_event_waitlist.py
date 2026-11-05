@@ -46,7 +46,7 @@ class TestWebsiteEventWaitlist(WaitlistCommon, HttpCase):
         self.assertNotIn("o_wevent_waitlist_join", html)
 
     def test_02_not_sold_out_no_button(self):
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         html = self.url_open(f"/event/{self.event.id}/register").text
         self.assertNotIn("o_wevent_waitlist_join", html)
 
@@ -79,7 +79,7 @@ class TestWebsiteEventWaitlist(WaitlistCommon, HttpCase):
         )
 
     def test_05_refused_when_not_sold_out_or_full(self):
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         res = self._join()
         self.assertIn("not open", res.text)
         self.assertFalse(
@@ -88,7 +88,7 @@ class TestWebsiteEventWaitlist(WaitlistCommon, HttpCase):
 
     def test_10_token_page_and_accept(self):
         entry = self._add_entry("Alice")
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         self.assertEqual(entry.state, "offered")
         url = f"/event/waitlist/{entry.access_token}"
         # GET never changes anything (mail scanners)
@@ -108,7 +108,7 @@ class TestWebsiteEventWaitlist(WaitlistCommon, HttpCase):
         self.url_open(url + "/leave", data={"csrf_token": self._csrf(url)})
         bob.invalidate_recordset()
         self.assertEqual(bob.state, "cancelled")
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         url = f"/event/waitlist/{alice.access_token}"
         self.url_open(url + "/decline", data={"csrf_token": self._csrf(url)})
         alice.invalidate_recordset()
@@ -124,7 +124,7 @@ class TestWebsiteEventWaitlist(WaitlistCommon, HttpCase):
     def test_13_expired_offer_on_page(self):
         alice = self._add_entry("Alice")
         bob = self._add_entry("Bob")
-        self.reg_1.action_cancel()
+        self.reg_1.write({"state": "cancel"})
         alice.offer_deadline = fields.Datetime.now() - timedelta(minutes=1)
         html = self.url_open(f"/event/waitlist/{alice.access_token}").text
         self.assertIn("was not confirmed in time", html)

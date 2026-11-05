@@ -4,7 +4,7 @@
     "name": "Event Waitlist",
     "summary": "Waiting list for sold-out events with automatic promotion "
     "or time-limited seat offers",
-    "version": "19.0.1.0.0",
+    "version": "20.0.1.0.0",
     "category": "Marketing/Events",
     "website": "https://github.com/OCA/event",
     "author": "SportJoe GmbH, Odoo Community Association (OCA)",
@@ -12,8 +12,7 @@
     "license": "LGPL-3",
     "depends": ["event"],
     "data": [
-        "security/event_waitlist_security.xml",
-        "security/ir.model.access.csv",
+        "security/ir.access.csv",
         "data/ir_cron_data.xml",
         "data/mail_template_data.xml",
         "views/event_waitlist_views.xml",
