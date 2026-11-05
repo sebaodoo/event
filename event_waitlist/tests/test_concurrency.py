@@ -7,8 +7,8 @@ from datetime import timedelta
 import psycopg2
 
 from odoo import SUPERUSER_ID, api, fields
-from odoo.api import Transaction
 from odoo.modules.registry import Registry
+from odoo.orm.environments import Transaction
 from odoo.tests import BaseCase, get_db_name, tagged
 
 

@@ -14,7 +14,9 @@ automatically, in one of two modes chosen per event:
 
 Other features:
 
-- One waiting list per event; an entry may target a specific ticket.
+- One waiting list per event; an entry may target a specific ticket and,
+  for events with several time slots, a specific slot (each slot has its
+  own queue and its seats are held separately).
 - People asking for several seats keep their position; a freed seat goes
   to the first person whose request fits.
 - No offers after the event has started; the deadline never goes beyond

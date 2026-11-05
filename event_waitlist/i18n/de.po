@@ -1,10 +1,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 18.0\n"
+"Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-02 06:12+0000\n"
-"PO-Revision-Date: 2026-11-02 06:12+0000\n"
+"POT-Creation-Date: 2026-11-02 06:07+0000\n"
+"PO-Revision-Date: 2026-11-02 06:07+0000\n"
 "Last-Translator: SportJoe GmbH\n"
 "Language-Team: German\n"
 "Language: de\n"
@@ -232,6 +232,11 @@ msgid "Access Token"
 msgstr "Zugangs-Token"
 
 #. module: event_waitlist
+#: model:ir.model.fields,help:event_waitlist.field_event_waitlist__is_multi_slots
+msgid "Allow multiple time slots. The communications, the maximum number of attendees and the maximum number of tickets registrations are defined for each time slot instead of the whole event."
+msgstr "Mehrere Zeitfenster erlauben. Kommunikation, maximale Teilnehmerzahl und maximale Ticketanmeldungen gelten dann je Zeitfenster statt für die ganze Veranstaltung."
+
+#. module: event_waitlist
 #: model_terms:ir.ui.view,arch_db:event_waitlist.waitlist_entry_page
 msgid "As soon as a seat becomes free, we will email you."
 msgstr "Sobald ein Platz frei wird, bekommst du eine E-Mail von uns."
@@ -282,7 +287,7 @@ msgid "Delete Entries After (days)"
 msgstr "Einträge löschen nach (Tagen)"
 
 #. module: event_waitlist
-#: model:ir.model.fields,field_description:event_waitlist.field_event_waitlist__display_name
+#: model:ir.model.fields,field_description:event_waitlist.field_event_event__display_name model:ir.model.fields,field_description:event_waitlist.field_event_event_ticket__display_name model:ir.model.fields,field_description:event_waitlist.field_event_registration__display_name model:ir.model.fields,field_description:event_waitlist.field_event_slot__display_name model:ir.model.fields,field_description:event_waitlist.field_event_waitlist__display_name
 msgid "Display Name"
 msgstr "Anzeigename"
 
@@ -321,6 +326,11 @@ msgid "Event Registration"
 msgstr "Veranstaltungsanmeldung"
 
 #. module: event_waitlist
+#: model:ir.model,name:event_waitlist.model_event_slot
+msgid "Event Slot"
+msgstr "Termin"
+
+#. module: event_waitlist
 #: model:ir.model,name:event_waitlist.model_event_event_ticket
 msgid "Event Ticket"
 msgstr "Veranstaltungsticket"
@@ -346,6 +356,11 @@ msgid "Expired / declined / left"
 msgstr "Abgelaufen / abgelehnt / ausgetragen"
 
 #. module: event_waitlist
+#: model:ir.model.fields,help:event_waitlist.field_event_waitlist__event_slot_id
+msgid "For events with several time slots: the slot the person waits for."
+msgstr "Bei Veranstaltungen mit mehreren Terminen: der Termin, auf den die Person wartet."
+
+#. module: event_waitlist
 #: model_terms:ir.ui.view,arch_db:event_waitlist.view_event_form_inherit_waitlist
 msgid "Give free seats to the waiting list now (this also happens automatically)."
 msgstr "Freie Plätze jetzt an die Warteliste vergeben (passiert auch automatisch)."
@@ -356,17 +371,12 @@ msgid "Great, your seat is confirmed!"
 msgstr "Super, dein Platz ist bestätigt!"
 
 #. module: event_waitlist
-#: model_terms:ir.ui.view,arch_db:event_waitlist.event_waitlist_view_search
-msgid "Group By"
-msgstr "Gruppieren nach"
-
-#. module: event_waitlist
 #: model:ir.model.fields,help:event_waitlist.field_event_event__waitlist_offer_hours
 msgid "How long a person has to accept an offered seat. The deadline never goes beyond the start of the event."
 msgstr "So lange hat eine Person Zeit, einen angebotenen Platz anzunehmen. Die Frist endet spätestens mit Beginn der Veranstaltung."
 
 #. module: event_waitlist
-#: model:ir.model.fields,field_description:event_waitlist.field_event_waitlist__id
+#: model:ir.model.fields,field_description:event_waitlist.field_event_event__id model:ir.model.fields,field_description:event_waitlist.field_event_event_ticket__id model:ir.model.fields,field_description:event_waitlist.field_event_registration__id model:ir.model.fields,field_description:event_waitlist.field_event_slot__id model:ir.model.fields,field_description:event_waitlist.field_event_waitlist__id
 msgid "ID"
 msgstr "ID"
 
@@ -374,6 +384,11 @@ msgstr "ID"
 #: model_terms:ir.ui.view,arch_db:event_waitlist.event_waitlist_view_form
 msgid "Internal note"
 msgstr "Interne Notiz"
+
+#. module: event_waitlist
+#: model:ir.model.fields,field_description:event_waitlist.field_event_waitlist__is_multi_slots
+msgid "Is Multi Slots"
+msgstr "Mehrere Termine"
 
 #. module: event_waitlist
 #: model_terms:ir.ui.view,arch_db:event_waitlist.waitlist_entry_page
@@ -505,6 +520,12 @@ msgid "Phone"
 msgstr "Telefon"
 
 #. module: event_waitlist
+#. odoo-python
+#: code:addons/event_waitlist/models/event_waitlist.py:0
+msgid "Please choose the slot %(name)s is waiting for."
+msgstr "Bitte wähle den Termin, auf den %(name)s wartet."
+
+#. module: event_waitlist
 #: model:ir.model.fields,field_description:event_waitlist.field_event_waitlist__position
 msgid "Position"
 msgstr "Platz"
@@ -560,7 +581,7 @@ msgid "Seats"
 msgstr "Plätze"
 
 #. module: event_waitlist
-#: model:ir.model.fields,field_description:event_waitlist.field_event_event__waitlist_seats_held model:ir.model.fields,field_description:event_waitlist.field_event_event_ticket__waitlist_seats_held
+#: model:ir.model.fields,field_description:event_waitlist.field_event_event__waitlist_seats_held model:ir.model.fields,field_description:event_waitlist.field_event_event_ticket__waitlist_seats_held model:ir.model.fields,field_description:event_waitlist.field_event_slot__waitlist_seats_held
 msgid "Seats Held for Waiting List"
 msgstr "Für Warteliste reservierte Plätze"
 
@@ -601,6 +622,11 @@ msgid "Sequence"
 msgstr "Reihenfolge"
 
 #. module: event_waitlist
+#: model:ir.model.fields,field_description:event_waitlist.field_event_waitlist__event_slot_id model_terms:ir.ui.view,arch_db:event_waitlist.event_waitlist_view_search
+msgid "Slot"
+msgstr "Termin"
+
+#. module: event_waitlist
 #: model_terms:ir.ui.view,arch_db:event_waitlist.waitlist_entry_page
 msgid "Sorry, this offer has expired and the seat went to the next person."
 msgstr "Leider ist das Angebot abgelaufen und der Platz ging an die nächste Person."
@@ -636,6 +662,12 @@ msgstr "Das Angebot für %(name)s ist abgelaufen."
 #: model_terms:ir.ui.view,arch_db:event_waitlist.waitlist_entry_page
 msgid "The offered seat was not confirmed in time."
 msgstr "Der angebotene Platz wurde nicht rechtzeitig bestätigt."
+
+#. module: event_waitlist
+#. odoo-python
+#: code:addons/event_waitlist/models/event_waitlist.py:0
+msgid "The slot does not belong to this event."
+msgstr "Der Termin gehört nicht zu dieser Veranstaltung."
 
 #. module: event_waitlist
 #. odoo-python

@@ -5,7 +5,7 @@ import logging
 from psycopg2 import IntegrityError
 from werkzeug.exceptions import NotFound
 
-from odoo import _, http, tools
+from odoo import http, tools
 from odoo.exceptions import ValidationError
 from odoo.http import request
 
@@ -19,13 +19,22 @@ MAX_SEATS = 10
 
 class WebsiteEventWaitlistController(http.Controller):
     def _waitlist_form_values(self, event, **post):
+        event_sudo = event.sudo()
         tickets = (
-            event._waitlist_joinable_tickets() if event.event_ticket_ids else False
+            event_sudo._waitlist_joinable_tickets()
+            if event_sudo.event_ticket_ids
+            else False
+        )
+        slots = (
+            event_sudo._waitlist_joinable_slots()
+            if event_sudo.is_multi_slots
+            else False
         )
         values = {
             "event": event,
             "main_object": event,
             "tickets": tickets,
+            "waitlist_slots": slots,
             "max_seats": MAX_SEATS,
             "form": post,
             "error": False,
@@ -35,7 +44,7 @@ class WebsiteEventWaitlistController(http.Controller):
             values["form"] = {
                 "name": partner.name,
                 "email": partner.email,
-                "phone": partner.phone or partner.mobile,
+                "phone": partner.phone,
             }
         return values
 
@@ -47,12 +56,14 @@ class WebsiteEventWaitlistController(http.Controller):
         methods=["GET"],
         sitemap=False,
     )
-    def event_waitlist_form(self, event, ticket_id=None, **kwargs):
+    def event_waitlist_form(self, event, ticket_id=None, slot_id=None, **kwargs):
         if not event.sudo().waitlist_enabled:
             raise NotFound()
         values = self._waitlist_form_values(event)
         if ticket_id and str(ticket_id).isdigit():
             values["form"] = dict(values["form"], ticket_id=int(ticket_id))
+        if slot_id and str(slot_id).isdigit():
+            values["form"] = dict(values["form"], slot_id=int(slot_id))
         values["can_join"] = event.sudo()._waitlist_can_join()
         return request.render("website_event_waitlist.waitlist_form", values)
 
@@ -97,24 +108,28 @@ class WebsiteEventWaitlistController(http.Controller):
         name = (post.get("name") or "").strip()
         email = (post.get("email") or "").strip()
         if not name or not email:
-            return _("Please enter your name and email address.")
+            return request.env._("Please enter your name and email address.")
         if not tools.email_normalize(email):
-            return _("Please enter a valid email address.")
+            return request.env._("Please enter a valid email address.")
         try:
             seats = int(post.get("seats") or 1)
         except ValueError:
             seats = 0
         if seats < 1 or seats > MAX_SEATS:
-            return _("Please choose between 1 and %s seats.", MAX_SEATS)
+            return request.env._("Please choose between 1 and %s seats.", MAX_SEATS)
         ticket = self._waitlist_get_ticket(event, post)
         if event.event_ticket_ids and not ticket:
-            return _("Please choose a ticket.")
+            return request.env._("Please choose a ticket.")
+        slot = self._waitlist_get_slot(event, post)
+        if event.is_multi_slots and not slot:
+            return request.env._("Please choose a date.")
         duplicate = (
             request.env["event.waitlist"]
             .sudo()
             .search_count(
                 [
                     ("event_id", "=", event.id),
+                    ("event_slot_id", "=", slot.id if slot else False),
                     ("email_normalized", "=", tools.email_normalize(email)),
                     ("state", "in", ACTIVE_STATES),
                 ]
@@ -122,10 +137,12 @@ class WebsiteEventWaitlistController(http.Controller):
         )
         if duplicate:
             return self._waitlist_duplicate_message()
-        if not event._waitlist_can_join(ticket or None):
+        if not event._waitlist_can_join(ticket or None, slot or None):
             if event.waitlist_is_full:
-                return _("Sorry, the waiting list is full.")
-            return _("The waiting list is not open for this event (anymore).")
+                return request.env._("Sorry, the waiting list is full.")
+            return request.env._(
+                "The waiting list is not open for this event (anymore)."
+            )
         return False
 
     def _waitlist_get_ticket(self, event, post):
@@ -138,11 +155,23 @@ class WebsiteEventWaitlistController(http.Controller):
         ticket = event.event_ticket_ids.filtered(lambda t: t.id == int(ticket_id))
         return ticket or False
 
+    def _waitlist_get_slot(self, event, post):
+        if not event.is_multi_slots:
+            return False
+        slot_id = post.get("slot_id")
+        if not slot_id or not str(slot_id).isdigit():
+            slots = event._waitlist_joinable_slots()
+            return slots if len(slots) == 1 else False
+        slot = event.event_slot_ids.filtered(lambda s: s.id == int(slot_id))
+        return slot or False
+
     def _waitlist_prepare_entry_values(self, event, post):
         ticket = self._waitlist_get_ticket(event, post)
+        slot = self._waitlist_get_slot(event, post)
         vals = {
             "event_id": event.id,
             "event_ticket_id": ticket.id if ticket else False,
+            "event_slot_id": slot.id if slot else False,
             "name": post["name"].strip(),
             "email": post["email"].strip(),
             "phone": (post.get("phone") or "").strip() or False,
@@ -154,7 +183,7 @@ class WebsiteEventWaitlistController(http.Controller):
         return vals
 
     def _waitlist_duplicate_message(self):
-        return _(
+        return request.env._(
             "This email address is already on the waiting list. "
             "Please check your inbox for our confirmation email."
         )
@@ -163,8 +192,8 @@ class WebsiteEventWaitlistController(http.Controller):
         if isinstance(error, IntegrityError):
             return self._waitlist_duplicate_message()
         if event.waitlist_is_full:
-            return _("Sorry, the waiting list is full.")
-        return _("Sorry, we could not add you to the waiting list.")
+            return request.env._("Sorry, the waiting list is full.")
+        return request.env._("Sorry, we could not add you to the waiting list.")
 
 
 class WebsiteEventWaitlistTokenController(EventWaitlistController):

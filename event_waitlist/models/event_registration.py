@@ -28,7 +28,7 @@ class EventRegistration(models.Model):
 
     def write(self, vals):
         events = self._waitlist_freed_events(vals)
-        if {"event_id", "event_ticket_id"} & set(vals):
+        if {"event_id", "event_ticket_id", "event_slot_id"} & set(vals):
             events |= self.filtered(lambda r: r.state in TAKEN_STATES).event_id
         res = super().write(vals)
         if events:

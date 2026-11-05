@@ -5,7 +5,7 @@ import secrets
 from collections import defaultdict
 from datetime import timedelta
 
-from odoo import _, api, fields, models, tools
+from odoo import api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 
 from odoo.addons.base.models.res_partner import _lang_get
@@ -35,6 +35,15 @@ class EventWaitlist(models.Model):
         ondelete="cascade",
         domain="[('event_id', '=', event_id)]",
     )
+    event_slot_id = fields.Many2one(
+        "event.slot",
+        string="Slot",
+        ondelete="cascade",
+        index="btree_not_null",
+        domain="[('event_id', '=', event_id)]",
+        help="For events with several time slots: the slot the person waits for.",
+    )
+    is_multi_slots = fields.Boolean(related="event_id.is_multi_slots")
     company_id = fields.Many2one(related="event_id.company_id", store=True, index=True)
     partner_id = fields.Many2one(
         "res.partner", string="Contact", index="btree_not_null"
@@ -77,20 +86,15 @@ class EventWaitlist(models.Model):
     registration_count = fields.Integer(compute="_compute_registration_count")
     note = fields.Text()
 
-    _sql_constraints = [
-        ("seats_positive", "CHECK(seats > 0)", "The number of seats must be positive."),
-    ]
-
-    def init(self):
-        # Hard guarantee against duplicates, also under concurrency.
-        self.env.cr.execute(
-            """
-            CREATE UNIQUE INDEX IF NOT EXISTS event_waitlist_unique_active_email
-            ON event_waitlist (event_id, email_normalized)
-            WHERE state IN %s
-            """,
-            (ACTIVE_STATES,),
-        )
+    _seats_positive = models.Constraint(
+        "CHECK(seats > 0)", "The number of seats must be positive."
+    )
+    # Hard guarantee against duplicates (same email, event and slot), also
+    # under concurrency.
+    _unique_active_email = models.UniqueIndex(
+        "(event_id, COALESCE(event_slot_id, 0), email_normalized) "
+        "WHERE state IN ('waiting', 'offered', 'payment')"
+    )
 
     # ------------------------------------------------------------------
     # Defaults / computes
@@ -134,14 +138,17 @@ class EventWaitlist(models.Model):
     # Constraints
     # ------------------------------------------------------------------
 
-    def _check_duplicate_values(self, event_id, email_normalized, exclude_ids=()):
-        """Refuse a second active entry with the same email for an event.
-        Checked before writing so that users get a clear message; the unique
-        index guarantees it under concurrency."""
+    def _check_duplicate_values(
+        self, event_id, email_normalized, exclude_ids=(), slot_id=False
+    ):
+        """Refuse a second active entry with the same email for an event (and
+        slot). Checked before writing so that users get a clear message; the
+        unique index guarantees it under concurrency."""
         duplicate = self.sudo().search_count(
             [
                 ("id", "not in", list(exclude_ids)),
                 ("event_id", "=", event_id),
+                ("event_slot_id", "=", slot_id or False),
                 ("email_normalized", "=", email_normalized),
                 ("state", "in", ACTIVE_STATES),
             ]
@@ -149,21 +156,38 @@ class EventWaitlist(models.Model):
         if duplicate:
             event = self.env["event.event"].sudo().browse(event_id)
             raise ValidationError(
-                _(
+                self.env._(
                     "%(email)s is already on the waiting list of %(event)s.",
                     email=email_normalized,
                     event=event.name,
                 )
             )
 
-    @api.constrains("event_id", "event_ticket_id")
+    @api.constrains("event_id", "event_ticket_id", "event_slot_id")
     def _check_ticket_event(self):
         for entry in self:
             if (
                 entry.event_ticket_id
                 and entry.event_ticket_id.event_id != entry.event_id
             ):
-                raise ValidationError(_("The ticket does not belong to this event."))
+                raise ValidationError(
+                    self.env._("The ticket does not belong to this event.")
+                )
+            if entry.event_slot_id and entry.event_slot_id.event_id != entry.event_id:
+                raise ValidationError(
+                    self.env._("The slot does not belong to this event.")
+                )
+            if (
+                entry.event_id.is_multi_slots
+                and not entry.event_slot_id
+                and entry.state in ACTIVE_STATES
+            ):
+                raise ValidationError(
+                    self.env._(
+                        "Please choose the slot %(name)s is waiting for.",
+                        name=entry.name,
+                    )
+                )
 
     # ------------------------------------------------------------------
     # CRUD
@@ -175,7 +199,11 @@ class EventWaitlist(models.Model):
             vals.setdefault("access_token", secrets.token_urlsafe(32))
             vals["email_normalized"] = self._normalize_email(vals.get("email"))
             if vals.get("event_id") and vals.get("state", "waiting") in ACTIVE_STATES:
-                self._check_duplicate_values(vals["event_id"], vals["email_normalized"])
+                self._check_duplicate_values(
+                    vals["event_id"],
+                    vals["email_normalized"],
+                    slot_id=vals.get("event_slot_id"),
+                )
             if vals.get("event_id") and "sequence" not in vals:
                 last = self.sudo().search(
                     [("event_id", "=", vals["event_id"])],
@@ -189,7 +217,7 @@ class EventWaitlist(models.Model):
             event._waitlist_check_max_size()
             for entry in event_entries:
                 event._waitlist_log(
-                    _(
+                    self.env._(
                         "%(name)s joined the waiting list (%(seats)s seat(s)).",
                         name=entry.name,
                         seats=entry.seats,
@@ -205,7 +233,7 @@ class EventWaitlist(models.Model):
     def write(self, vals):
         if "email" in vals:
             vals["email_normalized"] = self._normalize_email(vals["email"])
-        if {"email", "event_id", "state"} & set(vals):
+        if {"email", "event_id", "event_slot_id", "state"} & set(vals):
             for entry in self:
                 state = vals.get("state", entry.state)
                 if state in ACTIVE_STATES:
@@ -213,6 +241,7 @@ class EventWaitlist(models.Model):
                         vals.get("event_id", entry.event_id.id),
                         vals.get("email_normalized", entry.email_normalized),
                         exclude_ids=entry.ids,
+                        slot_id=vals.get("event_slot_id", entry.event_slot_id.id),
                     )
         return super().write(vals)
 
@@ -227,7 +256,9 @@ class EventWaitlist(models.Model):
 
     @api.model
     def _waitlist_sum_seats(self, domain, groupby):
-        self.flush_model(["state", "seats", "event_id", "event_ticket_id"])
+        self.flush_model(
+            ["state", "seats", "event_id", "event_ticket_id", "event_slot_id"]
+        )
         result = defaultdict(int)
         for record, seats in self.sudo()._read_group(domain, [groupby], ["seats:sum"]):
             result[record.id] += seats or 0
@@ -262,22 +293,27 @@ class EventWaitlist(models.Model):
         return bool(self.offer_deadline and self.offer_deadline < fields.Datetime.now())
 
     def _waitlist_free_seats(self):
-        """Return how many seats are free for this entry (event and ticket)."""
+        """Return how many seats are free for this entry (event or slot, and
+        ticket), held seats of other entries excluded."""
         self.ensure_one()
-        event = self.event_id
-        free = []
-        if event.seats_limited and event.seats_max:
-            free.append(event.seats_available)
-        ticket = self.event_ticket_id
-        if ticket and ticket.seats_max:
-            free.append(ticket.seats_available)
-        return min(free) if free else float("inf")
+        available = self.event_id._get_seats_availability(
+            [(self.event_slot_id, self.event_ticket_id)]
+        )[0]
+        return float("inf") if available is None else available
+
+    def _waitlist_start(self):
+        """Start of what the entry waits for: its slot, else the event."""
+        self.ensure_one()
+        return self.event_slot_id.start_datetime or self.event_id.date_begin
 
     def _waitlist_can_be_served(self):
         """Whether a seat can still be given to this entry (dates, ticket)."""
         self.ensure_one()
         ticket = self.event_ticket_id
         if ticket and (ticket.is_expired or not ticket.is_launched):
+            return False
+        start = self._waitlist_start()
+        if start and start <= fields.Datetime.now():
             return False
         return True
 
@@ -296,13 +332,14 @@ class EventWaitlist(models.Model):
         for entry in self:
             event = entry.event_id
             deadline = now + timedelta(hours=max(event.waitlist_offer_hours, 1))
-            if event.date_begin and deadline > event.date_begin:
-                deadline = event.date_begin
+            start = entry._waitlist_start()
+            if start and deadline > start:
+                deadline = start
             entry.write(
                 {"state": "offered", "offer_date": now, "offer_deadline": deadline}
             )
             event._waitlist_log(
-                _(
+                self.env._(
                     "A seat was offered to %(name)s until %(deadline)s (UTC).",
                     name=entry.name,
                     deadline=fields.Datetime.to_string(deadline),
@@ -315,6 +352,7 @@ class EventWaitlist(models.Model):
         vals = {
             "event_id": self.event_id.id,
             "event_ticket_id": self.event_ticket_id.id or False,
+            "event_slot_id": self.event_slot_id.id or False,
             "partner_id": self.partner_id.id or False,
             "name": self.name,
             "email": self.email,
@@ -335,7 +373,7 @@ class EventWaitlist(models.Model):
                 entry._waitlist_prepare_registration_values()
             )
             entry.event_id._waitlist_log(
-                _(
+                self.env._(
                     "%(name)s moved up from the waiting list and is now registered "
                     "(%(seats)s seat(s)).",
                     name=entry.name,
@@ -351,7 +389,7 @@ class EventWaitlist(models.Model):
         for entry in self:
             entry.write({"state": "expired"})
             entry.event_id._waitlist_log(
-                _("The offer for %(name)s expired.", name=entry.name)
+                self.env._("The offer for %(name)s expired.", name=entry.name)
             )
         self._waitlist_send_mail("event_waitlist.mail_template_waitlist_expired")
 
@@ -379,7 +417,7 @@ class EventWaitlist(models.Model):
         for entry in entries:
             entry.write({"state": "declined"})
             entry.event_id._waitlist_log(
-                _("%(name)s declined the offered seat.", name=entry.name)
+                self.env._("%(name)s declined the offered seat.", name=entry.name)
             )
         entries.event_id._waitlist_process()
         return True
@@ -390,7 +428,7 @@ class EventWaitlist(models.Model):
         for entry in entries:
             entry.write({"state": "cancelled"})
             entry.event_id._waitlist_log(
-                _("%(name)s left the waiting list.", name=entry.name)
+                self.env._("%(name)s left the waiting list.", name=entry.name)
             )
         holding.event_id._waitlist_process()
         return True
@@ -403,11 +441,16 @@ class EventWaitlist(models.Model):
         for entry in entries:
             if entry._waitlist_free_seats() < entry.seats:
                 raise UserError(
-                    _("There are not enough free seats for %(name)s.", name=entry.name)
+                    self.env._(
+                        "There are not enough free seats for %(name)s.", name=entry.name
+                    )
                 )
-            if not entry.event_id._waitlist_can_offer():
+            if (
+                not entry.event_id._waitlist_can_offer()
+                or not entry._waitlist_can_be_served()
+            ):
                 raise UserError(
-                    _(
+                    self.env._(
                         "Seats can no longer be offered for this event "
                         "(it has started or is not open for registration)."
                     )

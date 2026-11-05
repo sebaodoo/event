@@ -4,7 +4,9 @@ Website part of `event_waitlist`.
   **Join the waiting list**. In the ticket selection, a sold-out ticket
   gets a "Join the waiting list" link while other tickets are still
   available. The event list shows "Waiting list open".
-- Sign-up form with name, email, optional phone, number of seats and
+- Events with time slots: a "Date fully booked? Join the waiting list" link
+  below the dates; the form only offers fully booked dates.
+- Sign-up form with name, email, optional phone, number of seats, date and
   ticket, a privacy notice (editable with the website editor), a honeypot
   against bots and a clear message for duplicate emails.
 - Confirmation page with the position on the list.

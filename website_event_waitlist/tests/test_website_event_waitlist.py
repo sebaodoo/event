@@ -130,3 +130,55 @@ class TestWebsiteEventWaitlist(WaitlistCommon, HttpCase):
         self.assertIn("was not confirmed in time", html)
         bob.invalidate_recordset()
         self.assertEqual(bob.state, "offered")
+
+    def test_20_slots(self):
+        day = (fields.Datetime.now() + timedelta(days=5)).date()
+        event = self.env["event.event"].create(
+            {
+                "name": "Weekly yoga",
+                "date_begin": fields.Datetime.now() + timedelta(days=4),
+                "date_end": fields.Datetime.now() + timedelta(days=14),
+                "seats_limited": True,
+                "seats_max": 1,
+                "waitlist_enabled": True,
+                "website_published": True,
+                "is_multi_slots": True,
+                "event_ticket_ids": [(5, 0, 0)],
+                "event_mail_ids": [(5, 0, 0)],
+                "event_slot_ids": [
+                    (0, 0, {"date": day, "start_hour": 18.0, "end_hour": 19.0}),
+                    (
+                        0,
+                        0,
+                        {
+                            "date": day + timedelta(days=7),
+                            "start_hour": 18.0,
+                            "end_hour": 19.0,
+                        },
+                    ),
+                ],
+            }
+        )
+        slot_1, slot_2 = event.event_slot_ids.sorted("date")
+        self.env["event.registration"].create(
+            {"event_id": event.id, "event_slot_id": slot_1.id, "name": "Full"}
+        )
+        html = self.url_open(f"/event/{event.id}/register").text
+        self.assertIn("o_wevent_waitlist_join", html)
+        html = self.url_open(f"/event/{event.id}/waitlist").text
+        slot_select = html.split('name="slot_id"', 1)[1].split("</select>", 1)[0]
+        self.assertIn(f'value="{slot_1.id}"', slot_select)
+        self.assertNotIn(f'value="{slot_2.id}"', slot_select)
+        url = f"/event/{event.id}/waitlist"
+        data = {
+            "csrf_token": self._csrf(),
+            "name": "Slot Visitor",
+            "email": "slot.visitor@example.com",
+            "seats": "1",
+        }
+        res = self.url_open(url, data=dict(data, slot_id=str(slot_2.id)))
+        self.assertIn("not open", res.text)
+        res = self.url_open(url, data=dict(data, slot_id=str(slot_1.id)))
+        self.assertIn("You are on the waiting list", res.text)
+        entry = self.env["event.waitlist"].search([("event_id", "=", event.id)])
+        self.assertEqual(entry.event_slot_id, slot_1)

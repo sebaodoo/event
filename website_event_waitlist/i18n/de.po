@@ -1,10 +1,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 18.0\n"
+"Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-02 06:12+0000\n"
-"PO-Revision-Date: 2026-11-02 06:12+0000\n"
+"POT-Creation-Date: 2026-11-02 06:07+0000\n"
+"PO-Revision-Date: 2026-11-02 06:07+0000\n"
 "Last-Translator: SportJoe GmbH\n"
 "Language-Team: German\n"
 "Language: de\n"
@@ -44,8 +44,23 @@ msgstr "Zurück zur Veranstaltung"
 
 #. module: website_event_waitlist
 #: model_terms:ir.ui.view,arch_db:website_event_waitlist.waitlist_form
+msgid "Choose a date…"
+msgstr "Termin wählen …"
+
+#. module: website_event_waitlist
+#: model_terms:ir.ui.view,arch_db:website_event_waitlist.waitlist_form
 msgid "Choose a ticket…"
 msgstr "Ticket wählen …"
+
+#. module: website_event_waitlist
+#: model_terms:ir.ui.view,arch_db:website_event_waitlist.waitlist_form
+msgid "Date"
+msgstr "Termin"
+
+#. module: website_event_waitlist
+#: model_terms:ir.ui.view,arch_db:website_event_waitlist.event_description_dates_waitlist
+msgid "Date fully booked? Join the waiting list"
+msgstr "Termin ausgebucht? Auf die Warteliste"
 
 #. module: website_event_waitlist
 #: model_terms:ir.ui.view,arch_db:website_event_waitlist.waitlist_form
@@ -76,6 +91,12 @@ msgstr "Telefon (optional)"
 #: model_terms:ir.ui.view,arch_db:website_event_waitlist.waitlist_success
 msgid "Please check your inbox ("
 msgstr "Bitte schau in dein Postfach ("
+
+#. module: website_event_waitlist
+#. odoo-python
+#: code:addons/website_event_waitlist/controllers/main.py:0
+msgid "Please choose a date."
+msgstr "Bitte wähle einen Termin."
 
 #. module: website_event_waitlist
 #. odoo-python

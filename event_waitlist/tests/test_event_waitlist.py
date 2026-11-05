@@ -328,7 +328,7 @@ class TestEventWaitlist(WaitlistCommon, TransactionCase):
             {
                 "name": "Portal",
                 "login": "wl_portal",
-                "groups_id": [(6, 0, [self.env.ref("base.group_portal").id])],
+                "group_ids": [(6, 0, [self.env.ref("base.group_portal").id])],
             }
         )
         for user in (public, portal):
